@@ -1,8 +1,13 @@
+import torch
 import torch.nn as nn
 
 class CuriousObserver(nn.Module):
 
-    def __init__(self, in_size, out_size, hid_size):
+    def __init__(self, 
+                 in_size, 
+                 out_size, 
+                 hid_size,
+                 lr=2e-2):
 
         super().__init__()
 
@@ -10,7 +15,16 @@ class CuriousObserver(nn.Module):
                                    nn.ReLU()])
         self.fc2 = nn.Linear(hid_size, out_size)
 
+        self.optimizer = torch.optim.Adam(self.parameters(), lr=lr)
+
     def forward(self, x):
         return self.fc2(self.fc1(x))
 
-    # def train(self):
+    def train(self, X, y, loss_fn=nn.CrossEntropyLoss()):
+        yhat = self.forward(X)
+        self.optimizer.zero_grad()
+        loss = loss_fn(yhat, y)
+        loss.backward()
+        self.optimizer.step()
+
+        return loss

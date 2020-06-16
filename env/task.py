@@ -1,3 +1,5 @@
+import torch
+import torch.nn as nn
 import numpy as np
 
 class TraversalTask():
@@ -9,6 +11,7 @@ class TraversalTask():
                  fix_dist = None,
                  change_start_on_reset=False, 
                  change_goal_on_reset=False,
+                 goal_conditioned_obs=True,
                  use_onehot_obs=True, 
                  permute_state_labels=False, 
                  reward='sparse'):
@@ -24,9 +27,11 @@ class TraversalTask():
         self.fix_dist = fix_dist
         self.change_start_on_reset = change_start_on_reset
         self.change_goal_on_reset = change_goal_on_reset
+        self.goal_conditioned_obs = goal_conditioned_obs
         self.use_onehot_obs = use_onehot_obs
         self.permute_state_labels = permute_state_labels # TODO: implement permute_state_labels
         self.reward = reward
+        self.action_dim = world.action_dim
         
         self._set_start_goal()
     
@@ -55,18 +60,25 @@ class TraversalTask():
         return np.random.choice(valid_nodes)
     
     def _to_onehot(self, obs):
-        s = obs[0]
-        g = obs[1]
-        n = len(self.world.nodes)
-        obs = torch.cat((nn.functional.one_hot(torch.tensor(s), n),
-                         nn.functional.one_hot(torch.tensor(g), n)),
-                        dim=0).type('torch.FloatTensor')
+        if self.goal_conditioned_obs:
+            s = obs[0]
+            g = obs[1]
+            n = len(self.world.nodes)
+            obs = torch.cat((nn.functional.one_hot(torch.tensor(s), n),
+                             nn.functional.one_hot(torch.tensor(g), n)),
+                            dim=0).type('torch.FloatTensor')
+        else:
+            n = len(self.world.nodes)
+            obs = nn.functional.one_hot(torch.tensor(obs), n).type('torch.FloatTensor')
         return obs
     
     def reset(self):
         self._set_start_goal()
         self.world.reset(self.start)
-        obs = [self.start, self.goal]
+        if self.goal_conditioned_obs:
+            obs = [self.start, self.goal]
+        else:
+            obs = self.start
         if self.use_onehot_obs:
             obs = self._to_onehot(obs)
         return obs
@@ -74,7 +86,10 @@ class TraversalTask():
     def step(self, action):
         
         ns = self.world.step(action)
-        obs = [ns, self.goal]
+        if self.goal_conditioned_obs:
+            obs = [ns, self.goal]
+        else:
+            obs = ns
         if self.use_onehot_obs:
             obs = self._to_onehot(obs)
         done = ns == self.goal

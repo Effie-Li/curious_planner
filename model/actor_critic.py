@@ -140,6 +140,9 @@ class ActorCritic(nn.Module):
         loss.backward()
         self.optimizer.step()
 
+        self.reset_buffer()
+
+    def reset_buffer(self):
         # reset rewards and action buffer
         del self.rewards[:]
         del self.saved_actions[:]

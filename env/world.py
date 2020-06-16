@@ -9,10 +9,12 @@ class NetworkWorld:
     
     def __init__(self, 
                  nodes, 
-                 edges):
+                 edges,
+                 action_dim):
         self.nodes = nodes # an array of nodes
         self.edges = edges # a dict of (node - list of nodes) paring
         self.current = None # for traversal
+        self.action_dim = action_dim
         self.build_graph()
     
     def build_graph(self):
@@ -50,4 +52,4 @@ class NetworkWorld:
         actions = [self.edges[shortest_path[i-1]].index(shortest_path[i]) 
                    for i in np.arange(len(shortest_path))[1:]]
         n = len(actions)
-        return {'n_step':n, 'shortest_path':shortest_path, 'actions':actions}
+        return {'n_step':n, 'path':shortest_path, 'actions':actions}
