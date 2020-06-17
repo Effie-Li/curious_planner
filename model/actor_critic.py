@@ -1,7 +1,13 @@
 import torch
 import torch.nn as nn
+from torch.distributions import Categorical
+import numpy as np
+from collections import namedtuple
+
+SavedAction = namedtuple('SavedAction', ['log_prob', 'value'])
 
 class ActorCritic(nn.Module):
+    
     """
     https://github.com/pytorch/examples/blob/master/reinforcement_learning/actor_critic.py
     implements both actor and critic in one model
@@ -143,6 +149,8 @@ class ActorCritic(nn.Module):
         self.optimizer.step()
 
         self.reset_buffer()
+        
+        return loss
 
     def reset_buffer(self):
         # reset rewards and action buffer

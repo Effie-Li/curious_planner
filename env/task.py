@@ -9,7 +9,7 @@ class TraversalTask():
                  start=None, 
                  goal=None,
                  min_dist=2,
-                 max_dist=None,
+                 max_dist=100,
                  change_start_on_reset=False, 
                  change_goal_on_reset=False,
                  goal_conditioned_obs=True,

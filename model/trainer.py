@@ -23,7 +23,7 @@ class ObserverTrainer:
 
             X = torch.cat((states, next_states), dim=1)
             loss = self.observer.train(X, actions, loss_fn=nn.CrossEntropyLoss())
-            self.writer.add_scalar('observer_loss', loss, i)
+            self.writer.add_scalar('observer_train_loss', loss, i)
             
             if (verbose) and (i % (n_epochs/10.0)==0):
                 print('epoch: %d  |  loss: %f' % (i, loss))
@@ -38,12 +38,14 @@ class AgentTrainer:
         self.env = env
         self.agent = agent
         self.writer = writer
+        self.current_epoch=None
 
     def train(self, n_epochs, log_interval, n_test_epochs, max_ep_steps, test=True, verbose=False):
     
         performance = {'episode':[], 'avg_step':[], 'avg_step_diff':[], 'avg_action_optimal':[]}
 
         for i_ep in range(n_epochs):
+            self.current_epoch = i_ep
             
             # single episode rollout
             data = collect_episodes(N=1, env=self.env, agent=self.agent, max_steps=max_ep_steps)
@@ -53,7 +55,7 @@ class AgentTrainer:
 
             # perform backprop
             loss = self.agent.train()
-            self.writer.add_scalar('agent_loss', loss, i_ep)
+            self.writer.add_scalar('agent_train_loss', loss, i_ep)
             
             ep_reward = np.sum(data[0]['rewards'])
 
@@ -65,10 +67,6 @@ class AgentTrainer:
                 performance['avg_step'].append(np.mean(p['agent_step']))
                 performance['avg_step_diff'].append(np.mean(p['step_diff']))
                 performance['avg_action_optimal'].append(np.mean(p['action_optimal'], 0))
-                self.writer.add_scalar('test_avg_step', performance['avg_step'], i_ep)
-                self.writer.add_scalar('test_avg_step_diff', performance['avg_step_diff'], i_ep)
-                self.writer.add_scalar('test_avg_first_action_optimal', performance['avg_action_optimal'][0], i_ep)
-                self.writer.add_scalar('test_avg_second_action_optimal', performance['avg_action_optimal'][1], i_ep)
 
                 if verbose:
                     print('Last episode {}\t|\t Average step: {:.2f} \t|\tAverage (step-optim): {:.2f} \t|\t % (step-optim)<=5: {:.2f} \t|\t % (step-optim)<=3: {:.2f}'.format(
@@ -78,7 +76,7 @@ class AgentTrainer:
                           np.mean(np.array(p['step_diff'])<=5),
                           np.mean(np.array(p['step_diff'])<=3)))
 
-        return agent, performance
+        return self.agent, performance
 
     def test(self, n_test_epochs, max_ep_steps):
         self.agent.test_mode = True
@@ -106,5 +104,14 @@ class AgentTrainer:
             performance['action_optimal'][i] = np.array([actions[0]==optim_actions[0], actions[1]==optim_actions[1]])
         
         self.agent.test_mode = False
+        
+        self.writer.add_scalar('agent_test_avg_step', 
+                               np.mean(performance['agent_step']), self.current_epoch)
+        self.writer.add_scalar('agent_test_avg_step_diff', 
+                               np.mean(performance['step_diff']), self.current_epoch)
+        self.writer.add_scalar('agent_test_avg_first_action_optimal', 
+                               np.mean(performance['action_optimal'], 0)[0], self.current_epoch)
+        self.writer.add_scalar('agent_test_avg_second_action_optimal', 
+                               np.mean(performance['action_optimal'], 0)[1], self.current_epoch)
     
         return performance

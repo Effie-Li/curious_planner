@@ -1,4 +1,3 @@
-# TODO: write scripts replicating previous results that takes command line arguments and outputs results in /data5/liyuxuan/cupla
 import torch
 import numpy as np
 from env.world import NetworkWorld
@@ -45,9 +44,11 @@ def run(run_ID,
         log_dir,
         cuda_idx,
         world,
+        task_min_dist,
+        task_max_dist,
         agent,
-        use_observer_fc1=True,
-        use_observer_fc2=True,
+        use_observer_fc1,
+        use_observer_fc2,
         n_epochs=1000,
         log_interval=10,
         n_test_epochs=50,
@@ -55,14 +56,11 @@ def run(run_ID,
         ):
     
     # TODO: save model checkpoints
-    # TODO: add random agent support
     
-    run_key = 'world%d_%s_run%d_%s_%s_%s' % (world, 
-                                             agent, 
-                                             run_ID,
-                                             'fc1' if use_observer_fc1 else '',
-                                             'fc2' if use_observer_fc2 else '',
-                                             datetime.now().strftime('%y%m%d%H%M'))
+    env_key = 'world{}_steps{}-{}'.format(world, task_min_dist, task_max_dist)
+    agent_key = '{}{}{}'.format(agent, '_fc1' if use_observer_fc1 else '', '_fc2' if use_observer_fc2 else '')
+    run_key = '{}_{}_run{}_{}'.format(env_key, agent_key, run_ID, 
+                                      datetime.now().strftime('%y%m%d%H%M'))
     writer = SummaryWriter(log_dir+run_key)
     
     if world==1:
@@ -82,18 +80,24 @@ def run(run_ID,
     fc2 = observer.fc2 if use_observer_fc2 else None
     
     # train agent
+    env = TraversalTask(world=world, start=0, goal=9, min_dist=task_min_dist, max_dist=task_max_dist,
+                        change_start_on_reset=True, change_goal_on_reset=True,
+                        goal_conditioned_obs=True, reward='sparse')
+
     if agent=='ra': # needs special trainer
         agent = RandomAgent(env.action_dim)
         t = AgentTrainer(env, agent, writer)
-        for i_ep in range(int(n_epochs/log_interval)):
-            t.test(n_test_epochs, max_ep_steps)
+        for i in range(n_epochs):
+            if (i%log_interval==0):
+                t.current_epoch = i
+                t.test(n_test_epochs, max_ep_steps)
     if agent=='ac':
-        agent = ActorCritic(in_size=30, hid_size=50, action_dim=2, gamma=0.9, epsilon=0.1,
+        agent = ActorCritic(in_size=30, hid_size=50, action_dim=env.action_dim, gamma=0.9, epsilon=0.1,
                             fc1=fc1, action_head=fc2)
         t = AgentTrainer(env, agent, writer)
         t.train(n_epochs, log_interval, n_test_epochs, max_ep_steps, test=True, verbose=False)
     if agent=='ri':
-        agent = Reinforce(in_size=30, hid_size=50, action_dim=2, gamma=0.9, epsilon=0.1,
+        agent = Reinforce(in_size=30, hid_size=50, action_dim=env.action_dim, gamma=0.9, epsilon=0.1,
                           fc1=fc1, action_head=fc2)
         t = AgentTrainer(env, agent, writer)
         t.train(n_epochs, log_interval, n_test_epochs, max_ep_steps, test=True, verbose=False)
@@ -102,14 +106,33 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--run_ID', help='run identifier', type=int, default=0)
-    parser.add_argument('--log_dir', help='logging directory', default='/data5/liyuxuan/cupla/')
-    parser.add_argument('--cuda_idx', help='gpu to use', default=9)
-    parser.add_argument('--world', help='world type', default=2)
+    parser.add_argument('--log_dir', help='logging directory', default='/data5/liyuxuan/cupla/runs/')
+    parser.add_argument('--cuda_idx', help='gpu to use', type=int, default=9)
+    parser.add_argument('--world', help='world type', type=int, default=2)
+    parser.add_argument('--task_min_dist', help='task difficulty (min dist)', type=int, default=2)
+    parser.add_argument('--task_max_dist', help='task difficulty (max dist)', type=int, default=100)
     parser.add_argument('--agent', help='agent type', default='ac')
+    parser.set_defaults(fc1=False, fc2=False)
+    parser.add_argument('--fc1', help='use observer fc1', dest='fc1', action='store_true')
+    parser.add_argument('--no-fc1', help='do not use observer fc1', dest='fc1', action='store_false')
+    parser.add_argument('--fc2', help='use observer fc2', dest='fc2', action='store_true')
+    parser.add_argument('--no-fc2', help='do not use observer fc2', dest='fc2', action='store_false')
+    parser.add_argument('--n_epochs', help='train epochs', type=int, default=1000)
+    parser.add_argument('--log_interval', help='logging interval', type=int, default=10)
+    parser.add_argument('--n_test_epochs', help='test epochs per test', type=int, default=50)
+    parser.add_argument('--max_ep_steps', help='max steps per episode', type=int, default=20)
     args = parser.parse_args()
     run(run_ID=args.run_ID,
         log_dir=args.log_dir,
         cuda_idx=args.cuda_idx,
         world=args.world,
+        task_min_dist=args.task_min_dist,
+        task_max_dist=args.task_max_dist,
         agent=args.agent,
+        use_observer_fc1=args.fc1,
+        use_observer_fc2=args.fc2,
+        n_epochs=args.n_epochs,
+        log_interval=args.log_interval,
+        n_test_epochs=args.n_test_epochs,
+        max_ep_steps=args.max_ep_steps,
         )

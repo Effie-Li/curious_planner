@@ -1,5 +1,7 @@
 import torch
 import torch.nn as nn
+from torch.distributions import Categorical
+import numpy as np
 
 class Reinforce(nn.Module):
     
@@ -84,11 +86,12 @@ class Reinforce(nn.Module):
             # sample action randomly
             uni = Categorical(torch.from_numpy(np.tile([1/self.action_dim], self.action_dim)))
             action = uni.sample()
+            # save to action buffer
+            self.saved_log_probs.append(m.log_prob(action))
         else:
             action = m.sample()
-
-        # save to action buffer
-        self.saved_log_probs.append(m.log_prob(action))
+            # save to action buffer
+            self.saved_log_probs.append(m.log_prob(action))
 
         # the action to take (0,1,2,3)
         return action.item()
@@ -124,7 +127,12 @@ class Reinforce(nn.Module):
         # perform backprop
         loss.backward()
         self.optimizer.step()
+        
+        self.reset_buffer()
+        
+        return loss
 
+    def reset_buffer(self):
         # reset rewards and action buffer
         del self.rewards[:]
         del self.saved_log_probs[:]
