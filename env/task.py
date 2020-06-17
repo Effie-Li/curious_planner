@@ -8,7 +8,8 @@ class TraversalTask():
                  world, 
                  start=None, 
                  goal=None,
-                 fix_dist = None,
+                 min_dist=2,
+                 max_dist=None,
                  change_start_on_reset=False, 
                  change_goal_on_reset=False,
                  goal_conditioned_obs=True,
@@ -24,7 +25,8 @@ class TraversalTask():
         self.world = world
         self.start = start
         self.goal = goal
-        self.fix_dist = fix_dist
+        self.min_dist = min_dist # if task difficulty should be lower-bounded by n-step distance
+        self.max_dist = max_dist
         self.change_start_on_reset = change_start_on_reset
         self.change_goal_on_reset = change_goal_on_reset
         self.goal_conditioned_obs = goal_conditioned_obs
@@ -36,23 +38,38 @@ class TraversalTask():
         self._set_start_goal()
     
     def _set_start_goal(self):
-        if self.change_start_on_reset:
-            self.start = self._choose_exclude(self.world.nodes, self.world.get_neighbors(self.goal))
-        if self.change_goal_on_reset:
-            if self.fix_dist is not None:
-                self.goal = self._n_step_goal(self, self.start, self.fix_dist)
-            else:
-                self.goal = self._choose_exclude(self.world.nodes, self.world.get_neighbors(self.start))
+        # TODO: improve algorithm
+        # currently this is done by surveying all possible nodes in the network
+        # as we're focusing on small network for now
+        if (self.change_start_on_reset) and (not self.change_goal_on_reset):
+            self.start = self._sample_node_at_dist(self.goal, self.min_dist, self.max_dist, direction='to')
+
+        if (not self.change_start_on_reset) and (self.change_goal_on_reset):
+            self.goal = self._sample_node_at_dist(self.start, self.min_dist, self.max_dist, direction='from')
+
+        if (self.change_start_on_reset) and (self.change_goal_on_reset):
+            self.start = self.world.reset()
+            self.goal = self._sample_node_at_dist(self.start, self.min_dist, self.max_dist, direction='from')
+
         return self.start, self.goal
-    
-    def _n_step_goal(self, start, n_steps):
-        # force n-step task
-        for _ in range(100):
-            goal = self._choose_exclude(self.world.nodes, self.world.get_neighbors(self.start))
-            n, _, _ = self.world.shortest_path(self.start, goal)
-            if (n==n_steps):
-                break
-        return goal
+
+    def _sample_node_at_dist(self, node, min_dist, max_dist, direction):
+        # sample a node at certain distance from the given node
+        # direction: out, distance is based on given node --> target node
+        #            in, distance is based on target node --> given node
+        # TODO: what if there are no valid nodes?
+        valid_nodes = []
+        for x in self.world.nodes:
+            if direction=='from':
+                shortest_path = self.world.shortest_path(node, x)
+            elif direction=='to':
+                shortest_path = self.world.shortest_path(x, node)
+            check1 = True if min_dist is None else (shortest_path['n_step']>=min_dist)
+            check2 = True if max_dist is None else (shortest_path['n_step']<=max_dist)
+            if check1 and check2:
+                valid_nodes.append(x)
+        target = np.random.choice(valid_nodes)
+        return target
         
     def _choose_exclude(self, nodes, exclude):
         # randomly choose from nodes excluding the given states

@@ -24,21 +24,21 @@ class NetworkWorld:
             for j in self.edges[i]:
                 self.graph.add_edge(i, j, weight=1)
                 
-    def get_neighbors(self, node, lookup='neighbors'):
+    def get_neighbors(self, node, lookup='a'):
         '''
         returs the neighbors for the given node
-        :param lookup: if neighbors, get all neighbors
-                       if predecessors, get previous nodes
-                       if successors, get next nodes
+        :param lookup: if a, get all neighbors
+                       if p, get predecessors nodes
+                       if s, get successors nodes
         '''
-        if lookup=='neighbors':
+        if lookup=='a': # all neighbors
             return list(self.graph.predecessors(node)) + list(self.graph.successors(node))
-        if lookup=='predecessors':
+        if lookup=='p': # predecessors
             return list(self.graph.predecessors(node))
-        if lookup=='successors':
+        if lookup=='s': # successors
             return list(self.graph.successors(node))
-                
-    def reset(self, start):
+        
+    def reset(self, start=None):
         self.current = start if start is not None else np.random.choice(self.nodes)
         return self.current
 
