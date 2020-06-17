@@ -93,11 +93,13 @@ class ActorCritic(nn.Module):
             # sample action randomly
             uni = Categorical(torch.from_numpy(np.tile([1/self.action_dim], self.action_dim)))
             action = uni.sample()
+            # save to action buffer
+            self.saved_actions.append(SavedAction(m.log_prob(action), state_value))
         else:
             action = m.sample()
+            # save to action buffer
+            self.saved_actions.append(SavedAction(m.log_prob(action), state_value))
 
-        # save to action buffer
-        self.saved_actions.append(SavedAction(m.log_prob(action), state_value))
 
         # the action to take (0,1,2,3)
         return action.item()

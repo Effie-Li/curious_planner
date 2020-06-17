@@ -7,9 +7,11 @@ class ObserverTrainer:
 
     def __init__(self,
                  env,
-                 observer):
+                 observer,
+                 writer):
         self.env = env
         self.observer = observer
+        self.writer = writer
     
     def train(self, n_epochs, batch_size, verbose=False):
         
@@ -20,8 +22,8 @@ class ObserverTrainer:
             next_states = torch.stack(tuple([x['next_states'][0] for x in data]))
 
             X = torch.cat((states, next_states), dim=1)
-            
             loss = self.observer.train(X, actions, loss_fn=nn.CrossEntropyLoss())
+            self.writer.add_scalar('observer_loss', loss, i)
             
             if (verbose) and (i % (n_epochs/10.0)==0):
                 print('epoch: %d  |  loss: %f' % (i, loss))
@@ -30,10 +32,12 @@ class AgentTrainer:
 
     def __init__(self,
                  env,
-                 agent):
+                 agent,
+                 writer):
 
         self.env = env
         self.agent = agent
+        self.writer = writer
 
     def train(self, n_epochs, log_interval, n_test_epochs, max_ep_steps, test=True, verbose=False):
     
@@ -48,7 +52,8 @@ class AgentTrainer:
                 self.agent.rewards.append(r)
 
             # perform backprop
-            self.agent.train()
+            loss = self.agent.train()
+            self.writer.add_scalar('agent_loss', loss, i_ep)
             
             ep_reward = np.sum(data[0]['rewards'])
 
@@ -60,6 +65,10 @@ class AgentTrainer:
                 performance['avg_step'].append(np.mean(p['agent_step']))
                 performance['avg_step_diff'].append(np.mean(p['step_diff']))
                 performance['avg_action_optimal'].append(np.mean(p['action_optimal'], 0))
+                self.writer.add_scalar('test_avg_step', performance['avg_step'], i_ep)
+                self.writer.add_scalar('test_avg_step_diff', performance['avg_step_diff'], i_ep)
+                self.writer.add_scalar('test_avg_first_action_optimal', performance['avg_action_optimal'][0], i_ep)
+                self.writer.add_scalar('test_avg_second_action_optimal', performance['avg_action_optimal'][1], i_ep)
 
                 if verbose:
                     print('Last episode {}\t|\t Average step: {:.2f} \t|\tAverage (step-optim): {:.2f} \t|\t % (step-optim)<=5: {:.2f} \t|\t % (step-optim)<=3: {:.2f}'.format(
@@ -93,11 +102,9 @@ class AgentTrainer:
             performance['test_ep'][i] = i
             performance['agent_step'][i] = t
             performance['step_diff'][i] = t-n
-            print(n)
             # how are the first two actions corresponding to the optimal actions (in cases steps==2)
             performance['action_optimal'][i] = np.array([actions[0]==optim_actions[0], actions[1]==optim_actions[1]])
         
         self.agent.test_mode = False
-        self.agent.reset_buffer()
     
         return performance
