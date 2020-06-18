@@ -8,9 +8,14 @@ class ObserverTrainer:
     def __init__(self,
                  env,
                  observer,
+                 mode='ssa',
                  writer=None):
+        
+        # TODO: enable trainer constructing the observer from env state dim and action dim
+        
         self.env = env
         self.observer = observer
+        self.mode = mode
         self.writer = writer
     
     def train(self, n_epochs, batch_size, verbose=False):
@@ -20,9 +25,22 @@ class ObserverTrainer:
             states = torch.stack(tuple([x['states'][0] for x in data])) # first step across batch
             actions = torch.stack(tuple([torch.tensor(x['actions'][0]) for x in data]))
             next_states = torch.stack(tuple([x['next_states'][0] for x in data]))
-
-            X = torch.cat((states, next_states), dim=1)
-            loss = self.observer.train(X, actions, loss_fn=nn.CrossEntropyLoss())
+            
+            if self.mode=='ss':
+                # make y (next states) index label again
+                next_states = torch.argmax(next_states, dim=-1)
+                loss = self.observer.train(states, next_states, loss_fn=nn.CrossEntropyLoss())
+            if self.mode=='ssa':
+                X = torch.cat((states, next_states), dim=1)
+                loss = self.observer.train(X, actions, loss_fn=nn.CrossEntropyLoss())
+            elif self.mode=='sas':
+                # make actions one-hot then concat
+                actions = nn.functional.one_hot(torch.tensor(actions), self.env.action_dim).type('torch.FloatTensor')
+                X = torch.cat((states, actions), dim=1)
+                # make y (next states) index label again
+                next_states = torch.argmax(next_states, dim=-1)
+                loss = self.observer.train(X, next_states, loss_fn=nn.CrossEntropyLoss())
+            
             if self.writer is not None:
                 self.writer.add_scalar('observer_train_loss', loss, i)
             
