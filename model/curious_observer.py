@@ -7,12 +7,18 @@ class CuriousObserver(nn.Module):
                  in_size, 
                  out_size, 
                  hid_size,
+                 nonlinearity='relu',
                  lr=2e-2):
+
+        # TODO: allow pass in a network
 
         super().__init__()
 
-        self.fc1 = nn.Sequential(*[nn.Linear(in_size, hid_size),
-                                   nn.ReLU()])
+        if nonlinearity is None:
+            self.fc1 = nn.Linear(in_size, hid_size)
+        elif nonlinearity=='relu':
+            self.fc1 = nn.Sequential(*[nn.Linear(in_size, hid_size),
+                                       nn.ReLU()])
         self.fc2 = nn.Linear(hid_size, out_size)
 
         self.optimizer = torch.optim.Adam(self.parameters(), lr=lr)
