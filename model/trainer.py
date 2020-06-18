@@ -8,7 +8,7 @@ class ObserverTrainer:
     def __init__(self,
                  env,
                  observer,
-                 writer):
+                 writer=None):
         self.env = env
         self.observer = observer
         self.writer = writer
@@ -23,7 +23,8 @@ class ObserverTrainer:
 
             X = torch.cat((states, next_states), dim=1)
             loss = self.observer.train(X, actions, loss_fn=nn.CrossEntropyLoss())
-            self.writer.add_scalar('observer_train_loss', loss, i)
+            if self.writer is not None:
+                self.writer.add_scalar('observer_train_loss', loss, i)
             
             if (verbose) and (i % (n_epochs/10.0)==0):
                 print('epoch: %d  |  loss: %f' % (i, loss))
@@ -33,12 +34,12 @@ class AgentTrainer:
     def __init__(self,
                  env,
                  agent,
-                 writer):
+                 writer=None):
 
         self.env = env
         self.agent = agent
         self.writer = writer
-        self.current_epoch=None
+        self.current_epoch = None
 
     def train(self, n_epochs, log_interval, n_test_epochs, max_ep_steps, test=True, verbose=False):
     
@@ -55,7 +56,8 @@ class AgentTrainer:
 
             # perform backprop
             loss = self.agent.train()
-            self.writer.add_scalar('agent_train_loss', loss, i_ep)
+            if self.writer is not None:
+                self.writer.add_scalar('agent_train_loss', loss, i_ep)
             
             ep_reward = np.sum(data[0]['rewards'])
 
@@ -104,14 +106,15 @@ class AgentTrainer:
             performance['action_optimal'][i] = np.array([actions[0]==optim_actions[0], actions[1]==optim_actions[1]])
         
         self.agent.test_mode = False
-        
-        self.writer.add_scalar('agent_test_avg_step', 
-                               np.mean(performance['agent_step']), self.current_epoch)
-        self.writer.add_scalar('agent_test_avg_step_diff', 
-                               np.mean(performance['step_diff']), self.current_epoch)
-        self.writer.add_scalar('agent_test_avg_first_action_optimal', 
-                               np.mean(performance['action_optimal'], 0)[0], self.current_epoch)
-        self.writer.add_scalar('agent_test_avg_second_action_optimal', 
-                               np.mean(performance['action_optimal'], 0)[1], self.current_epoch)
+       
+        if self.writer is not None:
+            self.writer.add_scalar('agent_test_avg_step', 
+                                   np.mean(performance['agent_step']), self.current_epoch)
+            self.writer.add_scalar('agent_test_avg_step_diff', 
+                                   np.mean(performance['step_diff']), self.current_epoch)
+            self.writer.add_scalar('agent_test_avg_first_action_optimal', 
+                                   np.mean(performance['action_optimal'], 0)[0], self.current_epoch)
+            self.writer.add_scalar('agent_test_avg_second_action_optimal', 
+                                   np.mean(performance['action_optimal'], 0)[1], self.current_epoch)
     
         return performance
