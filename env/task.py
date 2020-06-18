@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import numpy as np
+import networkx as nx
 
 class TraversalTask():
     
@@ -32,6 +33,8 @@ class TraversalTask():
         self.use_onehot_obs = use_onehot_obs
         self.reward = reward
         self.action_dim = world.action_dim
+
+        # TODO: add observation dim
         
         self._set_start_goal()
     
@@ -39,6 +42,7 @@ class TraversalTask():
         # TODO: improve algorithm
         # currently this is done by surveying all possible nodes in the network
         # as we're focusing on small network for now
+
         if (self.change_start_on_reset) and (not self.change_goal_on_reset):
             self.start = self._sample_node_at_dist(self.goal, self.min_dist, self.max_dist, direction='to')
 
@@ -58,9 +62,14 @@ class TraversalTask():
         # TODO: what if there are no valid nodes?
         valid_nodes = []
         for x in self.world.nodes:
+            # if not connected, skip x
             if direction=='from':
+                if not nx.has_path(self.world.graph, node, x):
+                    continue
                 shortest_path = self.world.shortest_path(node, x)
             elif direction=='to':
+                if not nx.has_path(self.world.graph, x, node):
+                    continue
                 shortest_path = self.world.shortest_path(x, node)
             check1 = True if min_dist is None else (shortest_path['n_step']>=min_dist)
             check2 = True if max_dist is None else (shortest_path['n_step']<=max_dist)
