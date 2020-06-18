@@ -10,12 +10,33 @@ class NetworkWorld:
     def __init__(self, 
                  nodes, 
                  edges,
-                 action_dim):
+                 action_dim,
+                 permute_node_labels=False):
         self.nodes = nodes # an array of nodes
         self.edges = edges # a dict of (node - list of nodes) paring
         self.current = None # for traversal
         self.action_dim = action_dim
+        self.node_mapping = None
+        if permute_node_labels:
+            self.permute_node_labels()
         self.build_graph()
+
+    def permute_node_labels(self):
+        new_labels = np.copy(self.nodes)
+        np.random.shuffle(new_labels)
+        old_new_lookup = {}
+        for i, old in enumerate(self.nodes):
+            old_new_lookup[old] = new_labels[i]
+        self.node_mapping = old_new_lookup
+        # modify self.edges using the new nodes
+        new_edges = {}
+        for i, old in enumerate(self.nodes):
+            new = old_new_lookup[old]
+            old_successors = self.edges[old]
+            new_successors = [old_new_lookup[o] for o in old_successors]
+            new_edges[new] = new_successors
+        self.edges = new_edges
+        self.nodes = new_labels
     
     def build_graph(self):
         self.graph = nx.DiGraph()

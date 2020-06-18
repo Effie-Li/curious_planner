@@ -14,7 +14,6 @@ class TraversalTask():
                  change_goal_on_reset=False,
                  goal_conditioned_obs=True,
                  use_onehot_obs=True, 
-                 permute_state_labels=False, 
                  reward='sparse'):
         
         '''
@@ -31,7 +30,6 @@ class TraversalTask():
         self.change_goal_on_reset = change_goal_on_reset
         self.goal_conditioned_obs = goal_conditioned_obs
         self.use_onehot_obs = use_onehot_obs
-        self.permute_state_labels = permute_state_labels # TODO: implement permute_state_labels
         self.reward = reward
         self.action_dim = world.action_dim
         
