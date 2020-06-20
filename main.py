@@ -52,10 +52,10 @@ def run(run_ID,
         n_epochs=1000,
         log_interval=10,
         n_test_epochs=50,
-        max_ep_steps=20
+        max_ep_steps=20,
+        observer_checkpoint_interval=None,
+        agent_checkpoint_interval=None,
         ):
-    
-    # TODO: save model checkpoints
     
     env_key = 'world{}_steps{}-{}'.format(world, task_min_dist, task_max_dist)
     agent_key = '{}{}{}'.format(agent, '_fc1' if use_observer_fc1 else '', '_fc2' if use_observer_fc2 else '')
@@ -74,7 +74,8 @@ def run(run_ID,
                         goal_conditioned_obs=False, reward='sparse')
     observer = CuriousObserver(30, env.action_dim, 50)
     t = ObserverTrainer(env, observer, writer)
-    t.train(1000, 10, verbose=False)
+    t.train(n_epochs=1000, log_interval=1, batch_size=10, 
+            checkpoint_interval=observer_checkpoint_interval, verbose=False)
     
     fc1 = observer.fc1 if use_observer_fc1 else None
     fc2 = observer.fc2 if use_observer_fc2 else None
@@ -95,12 +96,14 @@ def run(run_ID,
         agent = ActorCritic(in_size=30, hid_size=50, action_dim=env.action_dim, gamma=0.9, epsilon=0.1,
                             fc1=fc1, action_head=fc2)
         t = AgentTrainer(env, agent, writer)
-        t.train(n_epochs, log_interval, n_test_epochs, max_ep_steps, test=True, verbose=False)
+        t.train(n_epochs, log_interval, n_test_epochs, max_ep_steps, 
+                checkpoint_interval=agent_checkpoint_interval, test=True, verbose=False)
     if agent=='ri':
         agent = Reinforce(in_size=30, hid_size=50, action_dim=env.action_dim, gamma=0.9, epsilon=0.1,
                           fc1=fc1, action_head=fc2)
         t = AgentTrainer(env, agent, writer)
-        t.train(n_epochs, log_interval, n_test_epochs, max_ep_steps, test=True, verbose=False)
+        t.train(n_epochs, log_interval, n_test_epochs, max_ep_steps, 
+                checkpoint_interval=agent_checkpoint_interval, test=True, verbose=False)
 
 if __name__ == '__main__':
     import argparse
@@ -121,6 +124,8 @@ if __name__ == '__main__':
     parser.add_argument('--log_interval', help='logging interval', type=int, default=10)
     parser.add_argument('--n_test_epochs', help='test epochs per test', type=int, default=50)
     parser.add_argument('--max_ep_steps', help='max steps per episode', type=int, default=20)
+    parser.add_argument('--observer_checkpoint_interval', help='frequency of observer model checkpoint', type=int, default=None)
+    parser.add_argument('--agent_checkpoint_interval', help='frequency of agent model checkpoint', type=int, default=None)
     args = parser.parse_args()
     run(run_ID=args.run_ID,
         log_dir=args.log_dir,
@@ -135,4 +140,6 @@ if __name__ == '__main__':
         log_interval=args.log_interval,
         n_test_epochs=args.n_test_epochs,
         max_ep_steps=args.max_ep_steps,
+        observer_checkpoint_interval=args.observer_checkpoint_interval,
+        agent_checkpoint_interval=args.agent_checkpoint_interval,
         )

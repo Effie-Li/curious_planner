@@ -18,7 +18,7 @@ class ObserverTrainer:
         self.mode = mode
         self.writer = writer
     
-    def train(self, n_epochs, batch_size, verbose=False):
+    def train(self, n_epochs, log_interval, batch_size, checkpoint_interval=None, verbose=False):
         
         for i in range(n_epochs):
             data = collect_episodes(N=batch_size, env=self.env, max_steps=1)
@@ -41,8 +41,10 @@ class ObserverTrainer:
                 next_states = torch.argmax(next_states, dim=-1)
                 loss = self.observer.train(X, next_states, loss_fn=nn.CrossEntropyLoss())
             
-            if self.writer is not None:
+            if (self.writer is not None) and (i % log_interval == 0):
                 self.writer.add_scalar('observer_train_loss', loss, i)
+                if (checkpoint_interval is not None) and (i % checkpoint_interval == 0):
+                    torch.save(self.observer.state_dict(), self.writer.get_logdir()+'/model_checkpoint_%d'%i)
             
             if (verbose) and (i % (n_epochs/10.0)==0):
                 print('epoch: %d  |  loss: %f' % (i, loss))
@@ -59,7 +61,7 @@ class AgentTrainer:
         self.writer = writer
         self.current_epoch = None
 
-    def train(self, n_epochs, log_interval, n_test_epochs, max_ep_steps, test=True, verbose=False):
+    def train(self, n_epochs, log_interval, n_test_epochs, max_ep_steps, test=True, checkpoint_interval=None, verbose=False):
     
         performance = {'episode':[], 'avg_step':[], 'avg_step_diff':[], 'avg_action_optimal':[]}
 
@@ -76,6 +78,8 @@ class AgentTrainer:
             loss = self.agent.train()
             if self.writer is not None:
                 self.writer.add_scalar('agent_train_loss', loss, i_ep)
+                if (checkpoint_interval is not None) and (i_ep % checkpoint_interval == 0):
+                    torch.save(self.agent.state_dict(), self.writer.get_logdir()+'/model_checkpoint_%d'%i_ep)
             
             ep_reward = np.sum(data[0]['rewards'])
 
