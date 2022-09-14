@@ -61,7 +61,8 @@ def run(run_ID,
     agent_key = '{}{}{}'.format(agent, '_fc1' if use_observer_fc1 else '', '_fc2' if use_observer_fc2 else '')
     run_key = '{}_{}_run{}_{}'.format(env_key, agent_key, run_ID, 
                                       datetime.now().strftime('%y%m%d%H%M'))
-    writer = SummaryWriter(log_dir+run_key)
+    observer_writer = SummaryWriter(log_dir+'observer_'+run_key)
+    agent_writer = SummaryWriter(log_dir+'agent_'+run_key)
     
     if world==1:
         world = world1
@@ -69,6 +70,7 @@ def run(run_ID,
         world = world2
 
     # train observer
+    '''
     env = TraversalTask(world=world, start=0, goal=9,
                         change_start_on_reset=True, change_goal_on_reset=True,
                         goal_conditioned_obs=False, reward='sparse')
@@ -76,32 +78,60 @@ def run(run_ID,
     t = ObserverTrainer(env, observer, writer)
     t.train(n_epochs=1000, log_interval=1, batch_size=10, 
             checkpoint_interval=observer_checkpoint_interval, verbose=False)
+    '''
+
+    env = TraversalTask(world=world, start=0, goal=9, min_dist=1, max_dist=1,
+                        change_start_on_reset=True, change_goal_on_reset=True,
+                        goal_conditioned_obs=True, reward='sparse')
+
+    if agent=='ac':
+        observer = ActorCritic(in_size=30, hid_size=50, action_dim=env.action_dim, gamma=0.9, epsilon=0.1)
+        t = AgentTrainer(env, observer, observer_writer)
+        t.train(n_epochs, log_interval, n_test_epochs, max_ep_steps,
+                checkpoint_interval=agent_checkpoint_interval, test=True, verbose=False)
+    if agent=='ri':
+        observer = Reinforce(in_size=30, hid_size=50, action_dim=env.action_dim, gamma=0.9, epsilon=0.1)
+        t = AgentTrainer(env, observer, observer_writer)
+        t.train(n_epochs, log_interval, n_test_epochs, max_ep_steps,
+                checkpoint_interval=agent_checkpoint_interval, test=True, verbose=False)
     
-    fc1 = observer.fc1 if use_observer_fc1 else None
-    fc2 = observer.fc2 if use_observer_fc2 else None
-    
-    # train agent
     env = TraversalTask(world=world, start=0, goal=9, min_dist=task_min_dist, max_dist=task_max_dist,
                         change_start_on_reset=True, change_goal_on_reset=True,
                         goal_conditioned_obs=True, reward='sparse')
 
     if agent=='ra': # needs special trainer
         agent = RandomAgent(env.action_dim)
-        t = AgentTrainer(env, agent, writer)
+        t = AgentTrainer(env, agent, agent_writer)
         for i in range(n_epochs):
             if (i%log_interval==0):
                 t.current_epoch = i
-                t.test(n_test_epochs, max_ep_steps)
+                min_dist = env.min_dist
+                max_dist = env.max_dist
+                for d in range(1, max_dist+1):
+                    if d > 4:
+                        break
+                    else:
+                        env.min_dist=d
+                        env.max_dist=d
+                        t.test(env, n_test_epochs, max_ep_steps, writer_prefix=str(d)+'-step_')
+                env.min_dist = min_dist
+                env.max_dist = max_dist
+                t.test(env, n_test_epochs, max_ep_steps)
     if agent=='ac':
+        fc1 = observer.fc1 if use_observer_fc1 else None
+        action_head = observer.action_head if use_observer_fc2 else None
+        value_head = observer.value_head if use_observer_fc2 else None
         agent = ActorCritic(in_size=30, hid_size=50, action_dim=env.action_dim, gamma=0.9, epsilon=0.1,
-                            fc1=fc1, action_head=fc2)
-        t = AgentTrainer(env, agent, writer)
+                            fc1=fc1, action_head=action_head, value_head=value_head)
+        t = AgentTrainer(env, agent, agent_writer)
         t.train(n_epochs, log_interval, n_test_epochs, max_ep_steps, 
                 checkpoint_interval=agent_checkpoint_interval, test=True, verbose=False)
     if agent=='ri':
+        fc1 = observer.fc1 if use_observer_fc1 else None
+        action_head = observer.action_head if use_observer_fc2 else None
         agent = Reinforce(in_size=30, hid_size=50, action_dim=env.action_dim, gamma=0.9, epsilon=0.1,
-                          fc1=fc1, action_head=fc2)
-        t = AgentTrainer(env, agent, writer)
+                          fc1=fc1, action_head=action_head)
+        t = AgentTrainer(env, agent, agent_writer)
         t.train(n_epochs, log_interval, n_test_epochs, max_ep_steps, 
                 checkpoint_interval=agent_checkpoint_interval, test=True, verbose=False)
 

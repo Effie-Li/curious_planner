@@ -34,3 +34,37 @@ class CuriousObserver(nn.Module):
         self.optimizer.step()
 
         return loss
+
+class IntuitivePathObserver(nn.Module):
+
+    def __init__(self, 
+                 in_size_1, 
+                 in_size_2,
+                 out_size, 
+                 hid_size,
+                 nonlinearity='relu',
+                 lr=2e-2):
+
+        super().__init__()
+        self.nonlinearity = nonlinearity
+
+        self.fc1_1 = nn.Linear(in_size_1, hid_size)
+        self.fc1_2 = nn.Linear(in_size_2, hid_size)
+
+        self.fc1 = nn.ReLU()
+
+        self.fc2 = nn.Linear(hid_size, out_size)
+
+        self.optimizer = torch.optim.Adam(self.parameters(), lr=lr)
+
+    def forward(self, x1, x2):
+        return self.fc2(self.fc1(self.fc1_1(x1)+self.fc1_2(x2)))
+
+    def train(self, X1, X2, y, loss_fn=nn.CrossEntropyLoss()):
+        yhat = self.forward(X1, X2)
+        self.optimizer.zero_grad()
+        loss = loss_fn(yhat, y)
+        loss.backward()
+        self.optimizer.step()
+
+        return loss

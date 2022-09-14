@@ -81,7 +81,8 @@ class Reinforce(nn.Module):
 
         # and sample an action using the distribution
         if self.test_mode:
-            action = m.sample()
+            action = torch.argmax(probs, dim=-1)
+            # action = m.sample()
         elif np.random.rand() < self.epsilon:
             # sample action randomly
             uni = Categorical(torch.from_numpy(np.tile([1/self.action_dim], self.action_dim)))

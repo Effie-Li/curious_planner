@@ -94,7 +94,9 @@ class ActorCritic(nn.Module):
 
         # and sample an action using the distribution
         if self.test_mode:
-            action = m.sample()
+            # strictly deterministic
+            action = torch.argmax(probs, dim=-1)
+            # action = m.sample()
         elif np.random.rand() < self.epsilon:
             # sample action randomly
             uni = Categorical(torch.from_numpy(np.tile([1/self.action_dim], self.action_dim)))
@@ -105,7 +107,6 @@ class ActorCritic(nn.Module):
             action = m.sample()
             # save to action buffer
             self.saved_actions.append(SavedAction(m.log_prob(action), state_value))
-
 
         # the action to take (0,1,2,3)
         return action.item()

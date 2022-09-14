@@ -48,7 +48,7 @@ class ObserverTrainer:
             
             if (verbose) and (i % (n_epochs/10.0)==0):
                 print('epoch: %d  |  loss: %f' % (i, loss))
-        
+
 class AgentTrainer:
 
     def __init__(self,
@@ -85,12 +85,29 @@ class AgentTrainer:
 
             # log results
             if (test) and (i_ep % log_interval == 0):
-                
-                p = self.test(n_test_epochs, max_ep_steps)
+
+                # additional breakup testing
+                min_dist = self.env.min_dist
+                max_dist= self.env.max_dist
+                for d in range(1, max_dist+1):
+                    if d > 4:
+                        break
+                    else:
+                        # test on d-step problems
+                        self.env.min_dist=d
+                        self.env.max_dist=d
+                        p = self.test(self.env, n_test_epochs, max_ep_steps, writer_prefix=str(d)+'-step_')
+                        self.writer.flush()
+
+                # test on original env
+                self.env.min_dist = min_dist
+                self.env.max_dist = max_dist
+                p = self.test(self.env, n_test_epochs, max_ep_steps, writer_prefix='')
+                self.writer.flush()
                 performance['episode'].append(i_ep)
                 performance['avg_step'].append(np.mean(p['agent_step']))
                 performance['avg_step_diff'].append(np.mean(p['step_diff']))
-                performance['avg_action_optimal'].append(np.mean(p['action_optimal'], 0))
+                performance['avg_action_optimal'].append(np.mean(p['first_action_optimal']))
 
                 if verbose:
                     print('Last episode {}\t|\t Average step: {:.2f} \t|\tAverage (step-optim): {:.2f} \t|\t % (step-optim)<=5: {:.2f} \t|\t % (step-optim)<=3: {:.2f}'.format(
@@ -100,20 +117,21 @@ class AgentTrainer:
                           np.mean(np.array(p['step_diff'])<=5),
                           np.mean(np.array(p['step_diff'])<=3)))
 
+        if self.writer is not None:
+            self.writer.close()
         return self.agent, performance
 
-    def test(self, n_test_epochs, max_ep_steps):
+    def test(self, env, n_test_epochs, max_ep_steps, writer_prefix=''):
         self.agent.test_mode = True
         
         performance = {'test_ep':np.zeros(n_test_epochs), 
                        'agent_step':np.zeros(n_test_epochs), 
                        'step_diff':np.zeros(n_test_epochs), 
-                       'action_optimal':np.zeros((n_test_epochs, 2))}
+                       'first_action_optimal':np.zeros(n_test_epochs)}
         
-        data = collect_episodes(N=n_test_epochs, env=self.env, agent=self.agent, max_steps=max_ep_steps)
+        data = collect_episodes(N=n_test_epochs, env=env, agent=self.agent, max_steps=max_ep_steps)
 
         for i in range(n_test_epochs):
-            
             ep = data[i]
             t = len(ep['dones'])
             actions = ep['actions']
@@ -125,18 +143,21 @@ class AgentTrainer:
             performance['agent_step'][i] = t
             performance['step_diff'][i] = t-n
             # how are the first two actions corresponding to the optimal actions (in cases steps==2)
-            performance['action_optimal'][i] = np.array([actions[0]==optim_actions[0], actions[1]==optim_actions[1]])
+            performance['first_action_optimal'][i] = actions[0]==optim_actions[0]
+            if self.writer is not None:
+                self.writer.add_scalar(writer_prefix+'test_epoch', i, self.current_epoch)
+                self.writer.add_scalar(writer_prefix+'test_optim_a1', optim_actions[0], self.current_epoch)
+                if len(optim_actions) >=2:
+                    self.writer.add_scalar(writer_prefix+'test_optim_a2', optim_actions[1], self.current_epoch)
+                else:
+                    self.writer.add_scalar(writer_prefix+'test_optim_a2', -1, self.current_epoch)
+                self.writer.add_scalar(writer_prefix+'agent_test_step', 
+                                       performance['agent_step'][i], self.current_epoch)
+                self.writer.add_scalar(writer_prefix+'agent_test_step_diff', 
+                                       performance['step_diff'][i], self.current_epoch)
+                self.writer.add_scalar(writer_prefix+'agent_test_first_action_optimal', 
+                                       performance['first_action_optimal'][i], self.current_epoch)
         
         self.agent.test_mode = False
-       
-        if self.writer is not None:
-            self.writer.add_scalar('agent_test_avg_step', 
-                                   np.mean(performance['agent_step']), self.current_epoch)
-            self.writer.add_scalar('agent_test_avg_step_diff', 
-                                   np.mean(performance['step_diff']), self.current_epoch)
-            self.writer.add_scalar('agent_test_avg_first_action_optimal', 
-                                   np.mean(performance['action_optimal'], 0)[0], self.current_epoch)
-            self.writer.add_scalar('agent_test_avg_second_action_optimal', 
-                                   np.mean(performance['action_optimal'], 0)[1], self.current_epoch)
     
         return performance

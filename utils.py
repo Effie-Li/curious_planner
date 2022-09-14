@@ -1,4 +1,8 @@
+import glob
+import numpy as np
+import pandas as pd
 from model.random_agent import RandomAgent
+from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 
 def collect_episodes(N, env, agent=None, max_steps=1):
     
@@ -42,5 +46,34 @@ def collect_episodes(N, env, agent=None, max_steps=1):
              'env_goal':env.goal
             }
         data.append(x)
+    
+    return data
+
+def tfevents_to_csv(logdir, prefix=None, save_csv=False):
+    
+    files = glob.glob(logdir+'*') if prefix is None else glob.glob(logdir+prefix+'*')
+    run_list = [f[len(logdir):] for f in files]
+    
+    dataframes = []
+    for run in run_list:
+        event = EventAccumulator(logdir+run)
+        event.Reload()
+        dfs = None
+        for s in event.scalars.Keys():
+            steps = [t.step for t in event.Scalars(s)]
+            values = [t.value for t in event.Scalars(s)]
+            if dfs is None:
+                dfs = pd.DataFrame({'step':steps, s:values})
+            else:
+                df = pd.DataFrame({'step':steps, s:values})
+                dfs = dfs.merge(df, on='step', how='left')
+        dfs['run'] = run
+        dataframes.append(dfs)
+    
+    data = pd.concat(dataframes)
+    
+    if save_csv:
+        fname = logdir+prefix+'.csv'
+        data.to_csv(fname)
     
     return data
